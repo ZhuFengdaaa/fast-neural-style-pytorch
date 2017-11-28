@@ -1,7 +1,71 @@
+from __future__ import print_function
+
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
+import torch.optim as optim
+
+from PIL import Image
+import matplotlib.pyplot as plt
+
+import torchvision.transforms as transforms
+import torchvision.models as models
+
+import copy
 import functools
 
+class ContentLoss(nn.Module):
+    def __init__(self, target, weight):
+        super(ContentLoss, self).__init__()
+        # we 'detach' the target content from the tree used
+        self.target = target.detach() * weight
+        # to dynamically compute the gradient: this is a stated value,
+        # not a variable. Otherwise the forward method of the criterion
+        # will throw an error.
+        self.weight = weight
+        self.criterion = nn.MSELoss()
+
+    def forward(self, input):
+        self.loss = self.criterion(input * self.weight, self.target)
+        self.output = input
+        return self.output
+
+    def backward(self, retain_graph=True):
+        self.loss.backward(retain_graph=retain_graph)
+        return self.loss
+
+class GramMatrix(nn.Module):
+    def forward(self, input):
+        a, b, c, d = input.size()  # a=batch size(=1)
+        # b=number of feature maps
+        # (c,d)=dimensions of a f. map (N=c*d)
+
+        features = input.view(a * b, c * d)  # resise F_XL into \hat F_XL
+
+        G = torch.mm(features, features.t())  # compute the gram product
+
+        # we 'normalize' the values of the gram matrix
+        # by dividing by the number of element in each feature maps.
+        return G.div(a * b * c * d)
+
+class StyleLoss(nn.Module):
+    def __init__(self, target, weight):
+        super(StyleLoss, self).__init__()
+        self.target = target.detach() * weight
+        self.weight = weight
+        self.gram = GramMatrix()
+        self.criterion = nn.MSELoss()
+
+    def forward(self, input):
+        self.output = input.clone()
+        self.G = self.gram(input)
+        self.G.mul_(self.weight)
+        self.loss = self.criterion(self.G, self.target)
+        return self.output
+
+    def backward(self, retain_graph=True):
+        self.loss.backward(retain_graph=retain_graph)
+        return self.loss
 
 # Define a resnet block
 class ResnetBlock(nn.Module):
@@ -118,6 +182,10 @@ def get_norm_layer(norm_type='batch'):
 
 class SimpleModel():
     def __init__(self, opt):
+        # desired depth layers to compute style/content losses :
+        content_layers_default = ['relu2_2']
+        style_layers_default = ['relu1_2', 'relu2_2', 'relu3_3', 'relu4_3']
+
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
@@ -127,23 +195,60 @@ class SimpleModel():
         size = opt.style_image_size
         self.input = self.Tensor(nb, 3, size, size)
         norm_layer = get_norm_layer(norm_type=opt.norm)
+        model=nn.Sequential()
         feature_net = FeatureNet(norm_layer, gpu_ids)
+        model.add_module(feature_net)
+        assert(opt.percep_loss_weight > 0)
+        cnn = models.vgg16(pretrained=True).features
+
+        for layer in list(cnn):
+            if isinstance(layer, nn.Conv2d):
+                name = "conv_" + str(i)
+                model.add_module(name, layer)
+
+                if name in content_layers:
+                    # add content loss:
+                    target = model(content_img).clone()
+                    content_loss = ContentLoss(target, content_weight)
+                    model.add_module("content_loss_" + str(i), content_loss)
+                    content_losses.append(content_loss)
+
+                if name in style_layers:
+                    # add style loss:
+                    target_feature = model(style_img).clone()
+                    target_feature_gram = gram(target_feature)
+                    style_loss = StyleLoss(target_feature_gram, style_weight)
+                    model.add_module("style_loss_" + str(i), style_loss)
+                    style_losses.append(style_loss)
+
+            if isinstance(layer, nn.ReLU):
+                name = "relu_" + str(i)
+                model.add_module(name, layer)
+
+                if name in content_layers:
+                    # add content loss:
+                    target = model(content_img).clone()
+                    content_loss = ContentLoss(target, content_weight)
+                    model.add_module("content_loss_" + str(i), content_loss)
+                    content_losses.append(content_loss)
+
+                if name in style_layers:
+                    # add style loss:
+                    target_feature = model(style_img).clone()
+                    target_feature_gram = gram(target_feature)
+                    style_loss = StyleLoss(target_feature_gram, style_weight)
+                    model.add_module("style_loss_" + str(i), style_loss)
+                    style_losses.append(style_loss)
+
+                i += 1
+
+            if isinstance(layer, nn.MaxPool2d):
+                name = "pool_" + str(i)
+                model.add_module(name, layer)
+
+        print(model)
 
 
-        # Set up pixel loss function
-        pixel_crit=None
-        if opt.pixel_loss_weight > 0:
-            if opt.pixel_loss_type=='L2':
-                pixel_crit=nn.MSELoss()
-            elif opt.pixel_loss_type=='L1':
-                pixel_crit = nn.L1Loss()
-            elif opt.pixel_loss_type=='SmoothL1':
-                pixel_crit = nn.SmoothL1Loss()
-
-        # Set up the perceptual loss function
-        percep_crit=None
-        if opt.percep_loss_weight > 0:
-        loss_net = torch.load()
     def name(self):
         return 'SimpleModel'
 
