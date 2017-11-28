@@ -1,4 +1,6 @@
 from fast_neural_style import network
+from options import Options
 
-model = network.SimpleModel()
+opt = Options().parse()
+model = network.SimpleModel(opt)
 print(model)

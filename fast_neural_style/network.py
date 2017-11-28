@@ -110,7 +110,7 @@ class ResnetBlock(nn.Module):
         return out
 
 
-class FeatureNet(nn.module):
+class FeatureNet(nn.Module):
     def __init__(self, norm_layer=nn.BatchNorm2d, gpu_ids=[]):
         super(FeatureNet, self).__init__()
         self.gpu_ids = gpu_ids
@@ -187,12 +187,11 @@ class SimpleModel():
         style_layers_default = ['relu1_2', 'relu2_2', 'relu3_3', 'relu4_3']
 
         self.opt = opt
-        self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
+        self.gpu_ids = opt.gpu_ids
         self.Tensor = torch.cuda.FloatTensor if self.gpu_ids else torch.Tensor
-        self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)
         nb = opt.batch_size
-        size = opt.style_image_size
+        size = opt.image_size
         self.input = self.Tensor(nb, 3, size, size)
         norm_layer = get_norm_layer(norm_type=opt.norm)
         model=nn.Sequential()
