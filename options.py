@@ -10,9 +10,10 @@ class Options():
 
     def initialize(self):
         self.parser.add_argument('--mode', required=True, choices=['train', 'test'])
+        self.parser.add_argument('--data_roots', required=True, type=str, help='path to images, use comma to separate multiple path')
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
-        self.parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
-        self.parser.add_argument('--image_size', type=int, default=286, help='scale images to this size')
+        self.parser.add_argument('--batch_size', type=int, default=4, help='input batch size')
+        self.parser.add_argument('--image_size', type=int, default=256, help='scale images to this size')
         self.parser.add_argument('--norm', type=str, default='instance',
                                  help='instance normalization or batch normalization')
         self.parser.add_argument('--percep_loss_weight', type=float, default='1.0', help='percep_loss_weight')
@@ -21,6 +22,13 @@ class Options():
         self.parser.add_argument('--style_layers', type=str, default='relu_2,relu_4,relu_7,relu_10',
                                  help='style_layers')
         self.parser.add_argument('--style_weight', type=float, default='1000.0', help='style weight')
+        self.parser.add_argument('--num_threads', default=4, type=int, help='# threads for loading data')
+        self.parser.add_argument('--lr', type=float, default=0.001, help='initial learning rate for adam')
+        self.parser.add_argument('--reg_tv', type=float, default=0.00001, help='total variation regularizer weight between 1e-6 to 1e-4')
+        self.parser.add_argument('--epoch_iter', type=int, default=40000, help='# of iter per epoch')
+        self.parser.add_argument('--num_epochs', type=int, default=2, help='# of epochs')
+        self.parser.add_argument('--log_iter', type=int, default=10000, help='frequency of logging')
+        self.parser.add_argument('--save_iter', type=int, default=1, help='frequency of saving checkpoints')
 
         self.initialized = True
 
@@ -36,6 +44,7 @@ class Options():
                 res.append(type_(items))
             return res
 
+        self.opt.data_roots = parse_comma(self.opt.data_roots)
         self.opt.gpu_ids = parse_comma(self.opt.gpu_ids, int)
         self.opt.content_layers = parse_comma(self.opt.content_layers)
         self.opt.style_layers = parse_comma(self.opt.style_layers)
