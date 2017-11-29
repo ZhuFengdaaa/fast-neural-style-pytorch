@@ -34,7 +34,7 @@ class Options():
                 res.append(type_(items))
             return res
 
-        self.opt.gpu_ids = parse_comma(self.opt.gpu_ids)
+        self.opt.gpu_ids = parse_comma(self.opt.gpu_ids, int)
         self.opt.content_layers = parse_comma(self.opt.content_layers)
         self.opt.style_layers = parse_comma(self.opt.style_layers)
 
@@ -48,6 +48,8 @@ class Options():
         for k, v in sorted(args.items()):
             print('%s: %s' % (str(k), str(v)))
         print('-------------- End ----------------')
+
+        return self.opt
 
         # # save to the disk
         # expr_dir = os.path.join(self.opt.checkpoints_dir, self.opt.name)

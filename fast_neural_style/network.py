@@ -133,7 +133,7 @@ class FeatureNet(nn.Module):
                          nn.ReLU(True)
                          ]
         prev_dim = next_dim
-        assert (prev_dim == nnext_dim == 128)
+        assert (prev_dim == next_dim == 128)
         for i in range(5):
             sequence += [ResnetBlock(next_dim, norm_layer, use_bias)]
 
@@ -183,23 +183,24 @@ def get_norm_layer(norm_type='batch'):
 class SimpleModel():
     def __init__(self, opt):
         # desired depth layers to compute style/content losses :
-        content_layers_default = ['relu2_2']
-        style_layers_default = ['relu1_2', 'relu2_2', 'relu3_3', 'relu4_3']
 
         self.opt = opt
-        self.isTrain = opt.isTrain
+        self.mode = opt.mode
         self.gpu_ids = opt.gpu_ids
         self.Tensor = torch.cuda.FloatTensor if self.gpu_ids else torch.Tensor
         nb = opt.batch_size
         size = opt.image_size
+        content_layers=opt.content_layers
+        style_layers=opt.style_layers
         self.input = self.Tensor(nb, 3, size, size)
         norm_layer = get_norm_layer(norm_type=opt.norm)
         model=nn.Sequential()
-        feature_net = FeatureNet(norm_layer, gpu_ids)
-        model.add_module(feature_net)
+        feature_net = FeatureNet(norm_layer, self.gpu_ids)
+        model.add_module('feature_net', feature_net)
         assert(opt.percep_loss_weight > 0)
         cnn = models.vgg16(pretrained=True).features
 
+        i=1
         for layer in list(cnn):
             if isinstance(layer, nn.Conv2d):
                 name = "conv_" + str(i)
