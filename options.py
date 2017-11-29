@@ -16,8 +16,8 @@ class Options():
         self.parser.add_argument('--norm', type=str, default='instance',
                                  help='instance normalization or batch normalization')
         self.parser.add_argument('--percep_loss_weight', type=float, default='1.0', help='percep_loss_weight')
-        self.parser.add_argument('--content_layers', type=str, default='relu2_2', help='content_layers')
-        self.parser.add_argument('--style_layers', type=str, default='relu1_2,relu2_2,relu3_3,relu4_3',
+        self.parser.add_argument('--content_layers', type=str, default='relu_4', help='content_layers')
+        self.parser.add_argument('--style_layers', type=str, default='relu_2,relu_4,relu_7,relu_10',
                                  help='style_layers')
 
         self.initialized = True
