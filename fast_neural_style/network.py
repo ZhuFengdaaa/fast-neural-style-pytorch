@@ -110,9 +110,9 @@ class ResnetBlock(nn.Module):
         return out
 
 
-class FeatureNet(nn.Module):
+class Generator(nn.Module):
     def __init__(self, norm_layer=nn.BatchNorm2d, gpu_ids=[]):
-        super(FeatureNet, self).__init__()
+        super(Generator, self).__init__()
         self.gpu_ids = gpu_ids
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -183,81 +183,88 @@ def get_norm_layer(norm_type='batch'):
 class SimpleModel():
     def __init__(self, opt):
         # desired depth layers to compute style/content losses :
-
-        self.opt = opt
-        self.mode = opt.mode
-        self.gpu_ids = opt.gpu_ids
-        self.Tensor = torch.cuda.FloatTensor if self.gpu_ids else torch.Tensor
+        self.opt=opt
+        self.Tensor = torch.cuda.FloatTensor if opt.gpu_ids else torch.Tensor
         nb = opt.batch_size
         size = opt.image_size
         content_layers=opt.content_layers
         style_layers=opt.style_layers
-        self.input = self.Tensor(nb, 3, size, size)
+        self.content_input = Variable(self.Tensor(nb, 3, size, size))
+        self.content_img = Variable(self.Tensor(nb, 3, size, size))
+        self.style_img = Variable(self.Tensor(nb, 3, size, size))
         norm_layer = get_norm_layer(norm_type=opt.norm)
         model=nn.Sequential()
-        feature_net = FeatureNet(norm_layer, self.gpu_ids)
-        model.add_module('feature_net', feature_net)
+        generator = Generator(norm_layer, opt.gpu_ids)
+        model.add_module('generator', generator)
         assert(opt.percep_loss_weight > 0)
         cnn = models.vgg16(pretrained=True).features
-
+        print(self.content_img)
+        if len(opt.gpu_ids)>0:
+            generator.cuda(device_id=opt.gpu_ids[0])
+        self.gram=GramMatrix()
+        self.content_losses=[]
+        self.style_losses=[]
         i=1
+        feature_exactor=nn.Sequential()
         for layer in list(cnn):
             if isinstance(layer, nn.Conv2d):
                 name = "conv_" + str(i)
-                model.add_module(name, layer)
+                feature_exactor.add_module(name, layer)
 
                 if name in content_layers:
                     # add content loss:
-                    target = model(content_img).clone()
-                    content_loss = ContentLoss(target, content_weight)
-                    model.add_module("content_loss_" + str(i), content_loss)
-                    content_losses.append(content_loss)
+                    target = model(self.content_img).clone()
+                    content_loss = ContentLoss(target, opt.content_weight)
+                    feature_exactor.add_module("content_loss_" + str(i), content_loss)
+                    self.content_losses.append(content_loss)
 
                 if name in style_layers:
                     # add style loss:
-                    target_feature = model(style_img).clone()
-                    target_feature_gram = gram(target_feature)
-                    style_loss = StyleLoss(target_feature_gram, style_weight)
-                    model.add_module("style_loss_" + str(i), style_loss)
-                    style_losses.append(style_loss)
+                    target_feature = model(self.style_img).clone()
+                    target_feature_gram = self.gram(target_feature)
+                    style_loss = StyleLoss(target_feature_gram, opt.style_weight)
+                    feature_exactor.add_module("style_loss_" + str(i), style_loss)
+                    self.style_losses.append(style_loss)
 
             if isinstance(layer, nn.ReLU):
                 name = "relu_" + str(i)
-                model.add_module(name, layer)
+                feature_exactor.add_module(name, layer)
 
                 if name in content_layers:
                     # add content loss:
-                    target = model(content_img).clone()
-                    content_loss = ContentLoss(target, content_weight)
-                    model.add_module("content_loss_" + str(i), content_loss)
-                    content_losses.append(content_loss)
+                    target = model(self.content_img).clone()
+                    content_loss = ContentLoss(target, opt.content_weight)
+                    feature_exactor.add_module("content_loss_" + str(i), content_loss)
+                    self.content_losses.append(content_loss)
 
                 if name in style_layers:
                     # add style loss:
-                    target_feature = model(style_img).clone()
-                    target_feature_gram = gram(target_feature)
-                    style_loss = StyleLoss(target_feature_gram, style_weight)
-                    model.add_module("style_loss_" + str(i), style_loss)
-                    style_losses.append(style_loss)
-
+                    target_feature = model(self.style_img).clone()
+                    target_feature_gram = self.gram(target_feature)
+                    style_loss = StyleLoss(target_feature_gram, opt.style_weight)
+                    feature_exactor.add_module("style_loss_" + str(i), style_loss)
+                    self.style_losses.append(style_loss)
                 i += 1
 
             if isinstance(layer, nn.MaxPool2d):
                 name = "pool_" + str(i)
-                model.add_module(name, layer)
+                feature_exactor.add_module(name, layer)
 
+        if len(opt.gpu_ids)>0:
+            feature_exactor.cuda(device_id=opt.gpu_ids[0])
+        model.add_module("feature_exactor", feature_exactor)
         print(model)
 
 
     def name(self):
         return 'SimpleModel'
 
-    def save_network(self, network, network_label, epoch_label, gpu_ids):
+    def save_network(self, network, network_label, epoch_label):
         save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         torch.save(network.cpu().state_dict(), save_path)
-        if len(gpu_ids) and torch.cuda.is_available():
-            network.cuda(gpu_ids[0])
+        if len(self.gpu_ids) and torch.cuda.is_available():
+            network.cuda(self.gpu_ids[0])
 
 
 def create_model(opt):
