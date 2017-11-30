@@ -1,18 +1,17 @@
-import TODO as TODO
-
 from fast_neural_style import network
 from options import Options
 import torchvision
 import torch.utils.data.dataset as dset
 import torch
 import time
+import folder
 
 opt = Options().parse()
 print(opt)
 
 datasets = []
 for path in opt.data_roots:
-    dataset = torchvision.datasets.ImageFolder(path)
+    dataset = folder.ImageFolder(path)
     datasets.append(dataset)
 total_dataset = dset.ConcatDataset(datasets)
 data_loader = torch.utils.data.DataLoader(total_dataset,
