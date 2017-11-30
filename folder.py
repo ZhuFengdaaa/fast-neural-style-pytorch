@@ -35,6 +35,7 @@ def make_dataset(dir, class_to_idx):
 
         for root, _, fnames in sorted(os.walk(d)):
             for fname in sorted(fnames):
+                print(fname)
                 if is_image_file(fname):
                     path = os.path.join(root, fname)
                     item = (path, class_to_idx[target])
@@ -91,6 +92,7 @@ class ImageFolder(data.Dataset):
     def __init__(self, root, transform=None, target_transform=None,
                  loader=default_loader):
         classes, class_to_idx = find_classes(root)
+        print(root, class_to_idx)
         imgs = make_dataset(root, class_to_idx)
         if len(imgs) == 0:
             raise(RuntimeError("Found 0 images in subfolders of: " + root + "\n"

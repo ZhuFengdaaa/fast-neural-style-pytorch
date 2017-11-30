@@ -73,7 +73,7 @@ class StyleLoss(nn.Module):
         return self.loss
 
 
-class TotalVaraitionLoss(nn.module):
+class TotalVaraitionLoss(nn.Module):
     def __init__(self, weight):
         self.weight = weight
 
