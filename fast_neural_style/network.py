@@ -218,11 +218,6 @@ class SimpleModel():
         norm_layer = get_norm_layer(norm_type=opt.norm)
         self.model = nn.Sequential()
         generator = Generator(norm_layer, opt.gpu_ids)
-<<<<<<< HEAD
-=======
-        if len(opt.gpu_ids) > 0:
-            generator.cuda(device_id=opt.gpu_ids[0])
->>>>>>> e187cc3336d85dd7b236787f00911933a94f3c75
         init_weights.init_weights(generator)
 
         self.model.add_module('generator', generator)
