@@ -11,7 +11,7 @@ import sys
 
 opt = Options().parse()
 
-sys.stdout=open(opt.log_file,"w")
+sys.stdout=open('./log/'+opt.log_file,"w")
 args=vars(opt)
 print('------------ Options -------------')
 for k, v in sorted(args.items()):

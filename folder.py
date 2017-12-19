@@ -23,7 +23,6 @@ def make_dataset(dir):
     images = []
     for root, _, fnames in sorted(os.walk(dir)):
         for fname in sorted(fnames):
-            print(fname)
             if is_image_file(fname):
                 path = os.path.join(root, fname)
                 item = path
