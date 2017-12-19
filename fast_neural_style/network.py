@@ -188,13 +188,6 @@ class Generator(nn.Module):
         else:
             return self.model(input)
 
-def image_loader(image_name):
-    image = Image.open(image_name)
-    image = Variable(loader(image))
-    # fake batch dimension required to fit network's input dimensions
-    image = image.unsqueeze(0)
-    return image
-
 def get_norm_layer(norm_type='batch'):
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
@@ -217,13 +210,12 @@ class PerceptualModel():
         size = opt.image_size
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.preprocess = transforms.Compose([transforms.Scale(256), transforms.RandomResizedCrop(224),
-                                         transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
+                                         transforms.RandomHorizontalFlip(), transforms.ToTensor(), self.normalize])
         content_layers = opt.content_layers
         style_layers = opt.style_layers
         self.image_tensor = self.Tensor(nb, 3, size, size)
         self.content_img = Variable(self.Tensor(nb, 3, size, size))
-        self.style_img = Variable(self.Tensor(image_loader(opt.style_image)))
-        self.style_img = self.preprocess(self.style_img)
+        self.style_img = Variable(self.Tensor(self.image_loader(opt.style_image)))
         self.generated_img = Variable(self.Tensor(nb, 3, size, size))
         norm_layer = get_norm_layer(norm_type=opt.norm)
         self.model = nn.Sequential()
@@ -281,6 +273,13 @@ class PerceptualModel():
 
         self.generator_optimizer = torch.optim.Adam(self.generator, lr=opt.lr)
         print("build end")
+
+    def image_loader(self, image_name):
+        image = Image.open(image_name)
+        image = Variable(self.preprocess(image))
+        # fake batch dimension required to fit network's input dimensions
+        image = image.unsqueeze(0)
+        return image
 
     def forward(self, data):
         self.image_tensor.resize_(data.size()).copy_(data)
