@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import os
 import torch
 
@@ -13,7 +14,7 @@ class Options():
         self.parser.add_argument('--data_roots', required=True, type=str, help='path to images, use comma to separate multiple path')
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         self.parser.add_argument('--batch_size', type=int, default=4, help='input batch size')
-        self.parser.add_argument('--image_size', type=int, default=256, help='scale images to this size')
+        self.parser.add_argument('--image_size', type=int, default=224, help='scale images to this size')
         self.parser.add_argument('--norm', type=str, default='instance',
                                  help='instance normalization or batch normalization')
         self.parser.add_argument('--percep_loss_weight', type=float, default='1.0', help='percep_loss_weight')
@@ -27,8 +28,9 @@ class Options():
         self.parser.add_argument('--reg_tv', type=float, default=0.00001, help='total variation regularizer weight between 1e-6 to 1e-4')
         self.parser.add_argument('--epoch_iter', type=int, default=40000, help='# of iter per epoch')
         self.parser.add_argument('--num_epochs', type=int, default=2, help='# of epochs')
-        self.parser.add_argument('--log_iter', type=int, default=10000, help='frequency of logging')
-        self.parser.add_argument('--save_iter', type=int, default=1, help='frequency of saving checkpoints')
+        self.parser.add_argument('--log_file', type=str, default='', help='log filename')
+        self.parser.add_argument('--log_iter', type=int, default=100, help='frequency of logging')
+        self.parser.add_argument('--save_iter', type=int, default=10000, help='frequency of saving checkpoints')
 
         self.initialized = True
 
@@ -49,17 +51,16 @@ class Options():
         self.opt.content_layers = parse_comma(self.opt.content_layers)
         self.opt.style_layers = parse_comma(self.opt.style_layers)
 
+        if self.opt.log_file=='':
+            self.opt.log_file=datetime.datetime.now().isoformat()+'-log.txt'
+
         # set gpu ids
         if len(self.opt.gpu_ids) > 0:
             torch.cuda.set_device(self.opt.gpu_ids[0])
 
         args = vars(self.opt)
 
-        print('------------ Options -------------')
-        for k, v in sorted(args.items()):
-            print('%s: %s' % (str(k), str(v)))
-        print('-------------- End ----------------')
-
+        
         return self.opt
 
         # # save to the disk

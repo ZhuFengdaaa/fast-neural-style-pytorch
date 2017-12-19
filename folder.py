@@ -1,4 +1,5 @@
 import torch.utils.data as data
+import torch
 
 from PIL import Image
 import os
@@ -94,6 +95,8 @@ class ImageFolder(data.Dataset):
         """
         path = self.imgs[index]
         img = self.loader(path)
+        if self.transform is not None:
+            img = self.transform(img)
 
         return img
 

@@ -44,13 +44,13 @@ class GramMatrix(nn.Module):
         # b=number of feature maps
         # (c,d)=dimensions of a f. map (N=c*d)
 
-        features = input.view(a * b, c * d)  # resise F_XL into \hat F_XL
+        features = input.view(a, b, c * d)  # resise F_XL into \hat F_XL
 
-        G = torch.mm(features, features.t())  # compute the gram product
+        G = torch.bmm(features, torch.transpose(features, 1, 2))  # compute the gram product
 
         # we 'normalize' the values of the gram matrix
         # by dividing by the number of element in each feature maps.
-        return G.div(a * b * c * d)
+        return G.div(b * c * d)
 
 
 class StyleLoss(nn.Module):
@@ -204,6 +204,7 @@ def get_norm_layer(norm_type='batch'):
 class SimpleModel():
     def __init__(self, opt):
         # desired depth layers to compute style/content losses :
+        print("build start")
         self.opt = opt
         self.Tensor = torch.cuda.FloatTensor if opt.gpu_ids else torch.Tensor
         nb = opt.batch_size
@@ -217,77 +218,71 @@ class SimpleModel():
         norm_layer = get_norm_layer(norm_type=opt.norm)
         self.model = nn.Sequential()
         generator = Generator(norm_layer, opt.gpu_ids)
-        if len(opt.gpu_ids) > 0:
-            generator.cuda(device_id=opt.gpu_ids[0])
-        init_weights(generator)
+        init_weights.init_weights(generator)
 
         self.model.add_module('generator', generator)
         assert (opt.percep_loss_weight > 0)
-        cnn = self.models.vgg16(pretrained=True).features
-        print(self.content_img)
+        cnn = models.vgg16(pretrained=True).features
 
         self.gram = GramMatrix()
         self.content_losses = []
         self.style_losses = []
         i = 1
-        feature_exactor = nn.Sequential()
+        if opt.gpu_ids > 0:
+            self.model=self.model.cuda()
+            self.gram=self.gram.cuda()
+            cnn=cnn.cuda()
         for layer in list(cnn):
             if isinstance(layer, nn.Conv2d):
                 name = "conv_" + str(i)
-                feature_exactor.add_module(name, layer)
+                self.model.add_module(name, layer)
 
                 if name in content_layers:
                     # add content loss:
-                    target = self.model(self.content_img).clone()
+                    target = self.model(self.content_img)
                     content_loss = ContentLoss(target, opt.content_weight)
-                    feature_exactor.add_module("content_loss_" + str(i), content_loss)
+                    self.model.add_module("content_loss_" + str(i), content_loss)
                     self.content_losses.append(content_loss)
 
                 if name in style_layers:
                     # add style loss:
-                    target_feature = self.model(self.style_img).clone()
+                    target_feature = self.model(self.style_img)
                     target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(target_feature_gram, opt.style_weight)
-                    feature_exactor.add_module("style_loss_" + str(i), style_loss)
+                    self.model.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
 
             if isinstance(layer, nn.ReLU):
                 name = "relu_" + str(i)
-                feature_exactor.add_module(name, layer)
+                self.model.add_module(name, layer)
 
                 if name in content_layers:
                     # add content loss:
-                    target = self.model(self.content_img).clone()
+                    target = self.model(self.content_img)
                     content_loss = ContentLoss(target, opt.content_weight)
-                    feature_exactor.add_module("content_loss_" + str(i), content_loss)
+                    self.model.add_module("content_loss_" + str(i), content_loss)
                     self.content_losses.append(content_loss)
 
                 if name in style_layers:
                     # add style loss:
-                    target_feature = self.model(self.style_img).clone()
+                    target_feature = self.model(self.style_img)
                     target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(target_feature_gram, opt.style_weight)
-                    feature_exactor.add_module("style_loss_" + str(i), style_loss)
+                    self.model.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
                 i += 1
 
             if isinstance(layer, nn.MaxPool2d):
                 name = "pool_" + str(i)
-                feature_exactor.add_module(name, layer)
+                self.model.add_module(name, layer)
 
-        if len(opt.gpu_ids) > 0:
-            feature_exactor.cuda(device_id=opt.gpu_ids[0])
-
-        self.model.add_module("feature_exactor", feature_exactor)
-        print(self.model)
-
-        self.generator_optimizer = torch.optim.Adam(self.model.state_dict['generator'].parameter(), lr=opt.lr)
+        self.generator_optimizer = torch.optim.Adam([param for name, param in self.model.named_parameters() if name.startswith('generator')], lr=opt.lr)
+        print("build end")
 
     def forward(self, data):
         self.image_tensor.resize_(data.size()).copy_(data)
         self.content_img = Variable(self.image_tensor)
-        self.generated_img = self.model.state_dict['generator'].forward(self.content_img)
-        self.model.state_dict['feature_exactor'].forward(self.generated_img)
+        self.model.forward(self.content_img)
 
     def backward(self):
         self.generator_optimizer.zero_grad()
@@ -297,6 +292,7 @@ class SimpleModel():
             content_score += cl.backward()
         for sl in self.style_losses:
             style_score += sl.backward()
+        return content_score, style_score
 
     def name(self):
         return 'SimpleModel'
@@ -306,4 +302,4 @@ class SimpleModel():
         save_path = os.path.join(self.opt.save_dir, save_filename)
         torch.save(network.cpu().state_dict(), save_path)
         if len(self.opt.gpu_ids) and torch.cuda.is_available():
-            network.cuda(device_id=gpu_ids[0])
+            network.cuda()
