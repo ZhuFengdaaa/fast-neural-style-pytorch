@@ -188,6 +188,12 @@ class Generator(nn.Module):
         else:
             return self.model(input)
 
+def image_loader(image_name):
+    image = Image.open(image_name)
+    image = Variable(loader(image))
+    # fake batch dimension required to fit network's input dimensions
+    image = image.unsqueeze(0)
+    return image
 
 def get_norm_layer(norm_type='batch'):
     if norm_type == 'batch':
@@ -201,7 +207,7 @@ def get_norm_layer(norm_type='batch'):
     return norm_layer
 
 
-class SimpleModel():
+class PerceptualModel():
     def __init__(self, opt):
         # desired depth layers to compute style/content losses :
         print("build start")
@@ -209,18 +215,21 @@ class SimpleModel():
         self.Tensor = torch.cuda.FloatTensor if opt.gpu_ids else torch.Tensor
         nb = opt.batch_size
         size = opt.image_size
+        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.preprocess = transforms.Compose([transforms.Scale(256), transforms.RandomResizedCrop(224),
+                                         transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
         content_layers = opt.content_layers
         style_layers = opt.style_layers
         self.image_tensor = self.Tensor(nb, 3, size, size)
         self.content_img = Variable(self.Tensor(nb, 3, size, size))
-        self.style_img = Variable(self.Tensor(nb, 3, size, size))
+        self.style_img = Variable(self.Tensor(image_loader(opt.style_image)))
+        self.style_img = self.preprocess(self.style_img)
         self.generated_img = Variable(self.Tensor(nb, 3, size, size))
         norm_layer = get_norm_layer(norm_type=opt.norm)
         self.model = nn.Sequential()
-        generator = Generator(norm_layer, opt.gpu_ids)
-        init_weights.init_weights(generator)
+        self.generator = Generator(norm_layer, opt.gpu_ids)
+        init_weights.init_weights(self.generator)
 
-        self.model.add_module('generator', generator)
         assert (opt.percep_loss_weight > 0)
         cnn = models.vgg16(pretrained=True).features
 
@@ -235,13 +244,11 @@ class SimpleModel():
         for layer in list(cnn):
             if isinstance(layer, nn.Conv2d):
                 name = "conv_" + str(i)
-                self.model.add_module(name, layer)
 
                 if name in content_layers:
                     # add content loss:
                     target = self.model(self.content_img)
                     content_loss = ContentLoss(target, opt.content_weight)
-                    self.model.add_module("content_loss_" + str(i), content_loss)
                     self.content_losses.append(content_loss)
 
                 if name in style_layers:
@@ -249,7 +256,6 @@ class SimpleModel():
                     target_feature = self.model(self.style_img)
                     target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(target_feature_gram, opt.style_weight)
-                    self.model.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
 
             if isinstance(layer, nn.ReLU):
@@ -260,7 +266,6 @@ class SimpleModel():
                     # add content loss:
                     target = self.model(self.content_img)
                     content_loss = ContentLoss(target, opt.content_weight)
-                    self.model.add_module("content_loss_" + str(i), content_loss)
                     self.content_losses.append(content_loss)
 
                 if name in style_layers:
@@ -268,15 +273,13 @@ class SimpleModel():
                     target_feature = self.model(self.style_img)
                     target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(target_feature_gram, opt.style_weight)
-                    self.model.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
                 i += 1
 
             if isinstance(layer, nn.MaxPool2d):
                 name = "pool_" + str(i)
-                self.model.add_module(name, layer)
 
-        self.generator_optimizer = torch.optim.Adam([param for name, param in self.model.named_parameters() if name.startswith('generator')], lr=opt.lr)
+        self.generator_optimizer = torch.optim.Adam(self.generator, lr=opt.lr)
         print("build end")
 
     def forward(self, data):
