@@ -219,7 +219,7 @@ class SimpleModel():
         generator = Generator(norm_layer, opt.gpu_ids)
         if len(opt.gpu_ids) > 0:
             generator.cuda(device_id=opt.gpu_ids[0])
-        init_weights(generator)
+        init_weights.init_weights(generator)
 
         self.model.add_module('generator', generator)
         assert (opt.percep_loss_weight > 0)
