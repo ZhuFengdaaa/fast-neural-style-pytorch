@@ -1,11 +1,14 @@
+import sys
+import time
 
+import torch
+import torch.utils.data.dataset as dset
+
+import folder
 from fast_neural_style import network
 from options import Options
-import torch.utils.data.dataset as dset
-import torch
-import time
-import folder
-import sys
+
+import utils
 
 opt = Options().parse()
 
@@ -59,7 +62,7 @@ for epoch in range(opt.num_epochs):
         if total_steps % opt.save_iter == 0:
             print('saving the latest model (epoch %d, total_steps %d)' %
                   (epoch, total_steps))
-            model.save(model.generator, 'generator', total_steps)
+            utils.save(model.generator, 'generator', total_steps)
 
             # model.update_learning_rate()
 

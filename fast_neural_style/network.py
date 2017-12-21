@@ -17,77 +17,6 @@ import functools
 import init_weights
 
 
-class ContentLoss(nn.Module):
-    def __init__(self, target, weight):
-        super(ContentLoss, self).__init__()
-        # we 'detach' the target content from the tree used
-        self.target = target.detach() * weight
-        # to dynamically compute the gradient: this is a stated value,
-        # not a variable. Otherwise the forward method of the criterion
-        # will throw an error.
-        self.weight = weight
-        self.criterion = nn.MSELoss()
-
-    def forward(self, input):
-        self.loss = self.criterion(input * self.weight, self.target)
-        self.output = input
-        return self.output
-
-    def backward(self, retain_graph=True):
-        self.loss.backward(retain_graph=retain_graph)
-        return self.loss
-
-
-class GramMatrix(nn.Module):
-    def forward(self, input):
-        a, b, c, d = input.size()  # a=batch size(=1)
-        # b=number of feature maps
-        # (c,d)=dimensions of a f. map (N=c*d)
-
-        features = input.view(a, b, c * d)  # resise F_XL into \hat F_XL
-
-        G = torch.bmm(features, torch.transpose(features, 1, 2))  # compute the gram product
-
-        # we 'normalize' the values of the gram matrix
-        # by dividing by the number of element in each feature maps.
-        return G.div(b * c * d)
-
-
-class StyleLoss(nn.Module):
-    def __init__(self, target, weight):
-        super(StyleLoss, self).__init__()
-        self.target = target.detach() * weight
-        self.weight = weight
-        self.gram = GramMatrix()
-        self.criterion = nn.MSELoss()
-
-    def forward(self, input):
-        self.output = input.clone()
-        self.G = self.gram(input)
-        self.G.mul_(self.weight)
-        self.loss = self.criterion(self.G, self.target)
-        return self.output
-
-    def backward(self, retain_graph=True):
-        self.loss.backward(retain_graph=retain_graph)
-        return self.loss
-
-
-class TotalVaraitionLoss(nn.Module):
-    def __init__(self, weight):
-        self.weight = weight
-
-    def forward(self, input):
-        self.output = input.clone()
-        self.loss = self.weight * torch.sum(torch.abs(input[:, :, :, :-1] - input[:, :, :, :1]) + \
-                                            torch.abs(input[:, :, :-1, :] - input[:, :, 1, :]))
-        return self.output
-
-    def backward(self, retain_graph=True):
-        self.loss.backward(retain_graph=retain_graph)
-        return self.loss
-
-
 # Define a resnet block
 class ResnetBlock(nn.Module):
     def __init__(self, dim, norm_layer, use_bias, use_dropout=False, padding_type='reflect'):
@@ -188,6 +117,7 @@ class Generator(nn.Module):
         else:
             return self.model(input)
 
+
 def get_norm_layer(norm_type='batch'):
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
@@ -210,73 +140,30 @@ class PerceptualModel():
         size = opt.image_size
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.preprocess = transforms.Compose([transforms.Resize(256), transforms.RandomResizedCrop(224),
-                                         transforms.RandomHorizontalFlip(), transforms.ToTensor(), self.normalize])
-        content_layers = opt.content_layers
-        style_layers = opt.style_layers
+                                              transforms.RandomHorizontalFlip(), transforms.ToTensor(), self.normalize])
+
         self.image_tensor = self.Tensor(nb, 3, size, size)
         self.content_img = Variable(self.Tensor(nb, 3, size, size))
         self.style_img = self.image_loader(opt.style_image)
         self.generated_img = Variable(self.Tensor(nb, 3, size, size))
         norm_layer = get_norm_layer(norm_type=opt.norm)
         self.model = nn.Sequential()
+        cnn = models.vgg16(pretrained=True).features
+        assert (opt.percep_loss_weight > 0)
+
         self.generator = Generator(norm_layer, opt.gpu_ids)
         init_weights.init_weights(self.generator)
+        self.perceptualcriterion = Perceptualcriterion(cnn)
 
-        assert (opt.percep_loss_weight > 0)
-        self.cnn = models.vgg16(pretrained=True).features
-        self.discriminator= nn.Sequential()
-
-        self.gram = GramMatrix()
-        self.content_losses = []
-        self.style_losses = []
-        i = 1
         if opt.gpu_ids > 0:
-            self.generator=self.generator.cuda()
-            self.gram=self.gram.cuda()
-            self.discriminator=self.discriminator.cuda()
-        for layer in list(self.cnn):
-            if isinstance(layer, nn.Conv2d):
-                name = "conv_" + str(i)
-                self.discriminator.add_module(name, layer)
-                if name in content_layers:
-                    # add content loss:
-                    target = self.discriminator(self.content_img)
-                    content_loss = ContentLoss(target, opt.content_weight)
-                    self.discriminator.add_module("content_loss_" + str(i), content_loss)
-                    self.content_losses.append(content_loss)
+            self.generator = self.generator.cuda()
+            self.perceptualcriterion = self.perceptualcriterion.cuda()
 
-                if name in style_layers:
-                    # add style loss:
-                    target_feature = self.discriminator(self.style_img)
-                    target_feature_gram = self.gram(target_feature)
-                    style_loss = StyleLoss(target_feature_gram, opt.style_weight)
-                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
-                    self.style_losses.append(style_loss)
+        self.model = nn.Sequential(*[self.generator, self.perceptualcriterion])
 
-            if isinstance(layer, nn.ReLU):
-                name = "relu_" + str(i)
-                self.discriminator.add_module(name, layer)
-
-                if name in content_layers:
-                    # add content loss:
-                    target = self.discriminator(self.content_img)
-                    content_loss = ContentLoss(target, opt.content_weight)
-                    self.discriminator.add_module("content_loss_" + str(i), content_loss)
-                    self.content_losses.append(content_loss)
-
-                if name in style_layers:
-                    # add style loss:
-                    target_feature = self.discriminator(self.style_img)
-                    target_feature_gram = self.gram(target_feature)
-                    style_loss = StyleLoss(target_feature_gram, opt.style_weight)
-                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
-                    self.style_losses.append(style_loss)
-                i += 1
-
-            if isinstance(layer, nn.MaxPool2d):
-                name = "pool_" + str(i)
-                self.discriminator.add_module(name, layer)
-
+        # TODO: copy style image batch wise
+        a, b, c, d = self.style_img.size()
+        # self.perceptualcriterion.set_style_target(self.style_img.unsqueeze(0).expand(nb, self.style_img))
         self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=opt.lr)
         print("build end")
 
@@ -291,24 +178,18 @@ class PerceptualModel():
         self.image_tensor.resize_(data.size()).copy_(data)
         self.content_img = Variable(self.image_tensor)
         self.generated_img = self.generator.forward(self.content_img)
-        self.discriminator.forward(self.generated_img)
+        self.perceptualcriterion.set_content_target(self.content_img)
+        self.perceptualcriterion.forward(self.generated_img)
 
     def backward(self):
         self.generator_optimizer.zero_grad()
         content_score = 0
         style_score = 0
-        for cl in self.content_losses:
+        for cl in self.perceptualcriterion.content_losses:
             content_score += cl.backward()
-        for sl in self.style_losses:
+        for sl in self.perceptualcriterion.style_losses:
             style_score += sl.backward()
         return content_score, style_score
 
     def name(self):
         return 'SimpleModel'
-
-    def save(self, network, network_label, iter_label):
-        save_filename = '%s_%s.pth' % (network_label, iter_label)
-        save_path = os.path.join(self.opt.save_dir, save_filename)
-        torch.save(network.cpu().state_dict(), save_path)
-        if len(self.opt.gpu_ids) and torch.cuda.is_available():
-            network.cuda()
