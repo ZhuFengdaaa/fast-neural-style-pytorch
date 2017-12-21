@@ -209,13 +209,13 @@ class PerceptualModel():
         nb = opt.batch_size
         size = opt.image_size
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.preprocess = transforms.Compose([transforms.Scale(256), transforms.RandomResizedCrop(224),
+        self.preprocess = transforms.Compose([transforms.Resize(256), transforms.RandomResizedCrop(224),
                                          transforms.RandomHorizontalFlip(), transforms.ToTensor(), self.normalize])
         content_layers = opt.content_layers
         style_layers = opt.style_layers
         self.image_tensor = self.Tensor(nb, 3, size, size)
         self.content_img = Variable(self.Tensor(nb, 3, size, size))
-        self.style_img = Variable(self.Tensor(self.image_loader(opt.style_image)))
+        self.style_img = self.image_loader(opt.style_image)
         self.generated_img = Variable(self.Tensor(nb, 3, size, size))
         norm_layer = get_norm_layer(norm_type=opt.norm)
         self.model = nn.Sequential()
@@ -223,55 +223,61 @@ class PerceptualModel():
         init_weights.init_weights(self.generator)
 
         assert (opt.percep_loss_weight > 0)
-        cnn = models.vgg16(pretrained=True).features
+        self.cnn = models.vgg16(pretrained=True).features
+        self.discriminator= nn.Sequential()
 
         self.gram = GramMatrix()
         self.content_losses = []
         self.style_losses = []
         i = 1
         if opt.gpu_ids > 0:
-            self.model=self.model.cuda()
+            self.generator=self.generator.cuda()
             self.gram=self.gram.cuda()
-            cnn=cnn.cuda()
-        for layer in list(cnn):
+            self.discriminator=self.discriminator.cuda()
+        for layer in list(self.cnn):
             if isinstance(layer, nn.Conv2d):
                 name = "conv_" + str(i)
-
+                self.discriminator.add_module(name, layer)
                 if name in content_layers:
                     # add content loss:
-                    target = self.model(self.content_img)
+                    target = self.discriminator(self.content_img)
                     content_loss = ContentLoss(target, opt.content_weight)
+                    self.discriminator.add_module("content_loss_" + str(i), content_loss)
                     self.content_losses.append(content_loss)
 
                 if name in style_layers:
                     # add style loss:
-                    target_feature = self.model(self.style_img)
+                    target_feature = self.discriminator(self.style_img)
                     target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(target_feature_gram, opt.style_weight)
+                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
 
             if isinstance(layer, nn.ReLU):
                 name = "relu_" + str(i)
-                self.model.add_module(name, layer)
+                self.discriminator.add_module(name, layer)
 
                 if name in content_layers:
                     # add content loss:
-                    target = self.model(self.content_img)
+                    target = self.discriminator(self.content_img)
                     content_loss = ContentLoss(target, opt.content_weight)
+                    self.discriminator.add_module("content_loss_" + str(i), content_loss)
                     self.content_losses.append(content_loss)
 
                 if name in style_layers:
                     # add style loss:
-                    target_feature = self.model(self.style_img)
+                    target_feature = self.discriminator(self.style_img)
                     target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(target_feature_gram, opt.style_weight)
+                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
                 i += 1
 
             if isinstance(layer, nn.MaxPool2d):
                 name = "pool_" + str(i)
+                self.discriminator.add_module(name, layer)
 
-        self.generator_optimizer = torch.optim.Adam(self.generator, lr=opt.lr)
+        self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=opt.lr)
         print("build end")
 
     def image_loader(self, image_name):
@@ -284,7 +290,8 @@ class PerceptualModel():
     def forward(self, data):
         self.image_tensor.resize_(data.size()).copy_(data)
         self.content_img = Variable(self.image_tensor)
-        self.model.forward(self.content_img)
+        self.generated_img = self.generator.forward(self.content_img)
+        self.discriminator.forward(self.generated_img)
 
     def backward(self):
         self.generator_optimizer.zero_grad()
