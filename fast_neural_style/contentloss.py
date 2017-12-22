@@ -1,3 +1,7 @@
+import torch
+import torch.nn as nn
+
+
 class ContentLoss(nn.Module):
     def __init__(self, weight):
         super(ContentLoss, self).__init__()
@@ -15,7 +19,7 @@ class ContentLoss(nn.Module):
         self.output = input.clone()
         if self.mode == 'capture':
             self.target = input.detach()
-        elif self.mode == 'loss'
+        elif self.mode == 'loss':
             self.loss = self.weight * self.criterion(input, self.target)
         return self.output
 

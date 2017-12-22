@@ -15,7 +15,7 @@ import copy
 import functools
 
 import init_weights
-
+from fast_neural_style.perceptualcriterion import Perceptualcriterion
 
 # Define a resnet block
 class ResnetBlock(nn.Module):
@@ -153,7 +153,7 @@ class PerceptualModel():
 
         self.generator = Generator(norm_layer, opt.gpu_ids)
         init_weights.init_weights(self.generator)
-        self.perceptualcriterion = Perceptualcriterion(cnn)
+        self.perceptualcriterion = Perceptualcriterion(cnn, opt)
 
         if opt.gpu_ids > 0:
             self.generator = self.generator.cuda()
@@ -161,9 +161,11 @@ class PerceptualModel():
 
         self.model = nn.Sequential(*[self.generator, self.perceptualcriterion])
 
-        # TODO: copy style image batch wise
-        a, b, c, d = self.style_img.size()
-        # self.perceptualcriterion.set_style_target(self.style_img.unsqueeze(0).expand(nb, self.style_img))
+        # copy style image batch wise
+        a,b,c,d = self.style_img.size()
+        self.style_img=self.style_img.expand(nb,b,c,d)
+        self.style_img=self.style_img.cuda()
+        self.perceptualcriterion.set_style_target(self.style_img)
         self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=opt.lr)
         print("build end")
 
@@ -185,10 +187,10 @@ class PerceptualModel():
         self.generator_optimizer.zero_grad()
         content_score = 0
         style_score = 0
-        for cl in self.perceptualcriterion.content_losses:
-            content_score += cl.backward()
-        for sl in self.perceptualcriterion.style_losses:
-            style_score += sl.backward()
+        #for cl in self.perceptualcriterion.content_losses:
+        #    content_score += cl.backward()
+        #for sl in self.perceptualcriterion.style_losses:
+        #    style_score += sl.backward()
         return content_score, style_score
 
     def name(self):

@@ -32,6 +32,7 @@ class Options():
         self.parser.add_argument('--log_iter', type=int, default=100, help='frequency of logging')
         self.parser.add_argument('--save_iter', type=int, default=10000, help='frequency of saving checkpoints')
         self.parser.add_argument('--style_image', type=str, required=True, help='path of style image')
+        self.parser.add_argument('--debug', type=bool, default=False, help='flag of debug')
 
         self.initialized = True
 

@@ -26,6 +26,9 @@ class StyleLoss(nn.Module):
         self.mode = 'none'
         self.target = torch.Tensor()
 
+    def set_mode(self, mode):
+        self.mode = mode
+    
     def forward(self, input):
         self.output = input.clone()
         if self.mode == 'capture':

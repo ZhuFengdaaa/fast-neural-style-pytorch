@@ -6,6 +6,8 @@ from contentloss import ContentLoss
 
 class Perceptualcriterion(nn.Module):
     def __init__(self, cnn, opt):
+        super(Perceptualcriterion, self).__init__()
+        self.gpu_ids = opt.gpu_ids
         self.content_losses = []
         self.style_losses = []
         self.discriminator = nn.Sequential()
@@ -21,6 +23,7 @@ class Perceptualcriterion(nn.Module):
         for layer in list(cnn):
             if isinstance(layer, nn.Conv2d):
                 name = "conv_" + str(i)
+                print(name)
                 self.discriminator.add_module(name, layer)
                 if name in content_layers:
                     # add content loss:
@@ -39,6 +42,7 @@ class Perceptualcriterion(nn.Module):
 
             if isinstance(layer, nn.ReLU):
                 name = "relu_" + str(i)
+                print(name)
                 self.discriminator.add_module(name, layer)
 
                 if name in content_layers:
@@ -59,6 +63,7 @@ class Perceptualcriterion(nn.Module):
 
             if isinstance(layer, nn.MaxPool2d):
                 name = "pool_" + str(i)
+                print(name)
                 self.discriminator.add_module(name, layer)
 
     def set_content_target(self, input):
@@ -66,18 +71,27 @@ class Perceptualcriterion(nn.Module):
             content_loss.set_mode("capture")
         for style_loss in self.style_losses:
             style_loss.set_mode("none")
-        self.discriminator(input)
+        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(self.discriminator, input, self.gpu_ids)
+        else:
+            return self.discriminator(input)
 
     def set_style_target(self, input):
         for content_loss in self.content_losses:
             content_loss.set_mode("none")
         for style_loss in self.style_losses:
             style_loss.set_mode("capture")
-        self.discriminator(input)
+        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(self.discriminator, input, self.gpu_ids)
+        else:
+            return self.discriminator(input)
 
     def forward(self, input):
         for content_loss in self.content_losses:
             content_loss.set_mode("loss")
         for style_loss in self.style_losses:
             style_loss.set_mode("loss")
-        return self.discriminator(input)
+        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(self.discriminator, input, self.gpu_ids)
+        else:
+            return self.discriminator(input)
