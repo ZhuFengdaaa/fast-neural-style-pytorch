@@ -37,7 +37,7 @@ class Perceptualcriterion(nn.Module):
                     # target_feature = self.discriminator(self.style_img)
                     # target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(opt.style_weight)
-                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
+                    #self.discriminator.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
 
             if isinstance(layer, nn.ReLU):
@@ -57,7 +57,7 @@ class Perceptualcriterion(nn.Module):
                     # target_feature = self.discriminator(self.style_img)
                     # target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(opt.style_weight)
-                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
+                    #self.discriminator.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
                 i += 1
 
@@ -65,6 +65,8 @@ class Perceptualcriterion(nn.Module):
                 name = "pool_" + str(i)
                 print(name)
                 self.discriminator.add_module(name, layer)
+        print("content_loss: ", self.content_losses)
+        print("style_loss: ", self.style_losses)
 
     def set_content_target(self, input):
         for content_loss in self.content_losses:

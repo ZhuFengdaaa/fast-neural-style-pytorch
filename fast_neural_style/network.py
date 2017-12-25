@@ -187,8 +187,8 @@ class PerceptualModel():
         self.generator_optimizer.zero_grad()
         content_score = 0
         style_score = 0
-        #for cl in self.perceptualcriterion.content_losses:
-        #    content_score += cl.backward()
+        for cl in self.perceptualcriterion.content_losses:
+            content_score += cl.backward()
         #for sl in self.perceptualcriterion.style_losses:
         #    style_score += sl.backward()
         return content_score, style_score
