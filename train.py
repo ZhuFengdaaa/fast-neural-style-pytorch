@@ -30,6 +30,7 @@ total_dataset = dset.ConcatDataset(datasets)
 data_loader = torch.utils.data.DataLoader(total_dataset,
                                           batch_size=opt.batch_size,
                                           shuffle=(opt.mode == 'train'),
+                                          drop_last=True,
                                           num_workers=opt.num_threads)
 dataset_size = len(data_loader)
 print('#training images = %d' % dataset_size)

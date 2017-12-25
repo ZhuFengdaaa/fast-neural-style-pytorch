@@ -139,7 +139,7 @@ class PerceptualModel():
         nb = opt.batch_size
         size = opt.image_size
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.preprocess = transforms.Compose([transforms.Resize(256), transforms.RandomResizedCrop(224),
+        self.preprocess = transforms.Compose([transforms.Scale(256), transforms.RandomSizedCrop(224),
                                               transforms.RandomHorizontalFlip(), transforms.ToTensor(), self.normalize])
 
         self.image_tensor = self.Tensor(nb, 3, size, size)
