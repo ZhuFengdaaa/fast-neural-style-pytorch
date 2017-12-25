@@ -32,7 +32,7 @@ class StyleLoss(nn.Module):
     def forward(self, input):
         self.output = input.clone()
         if self.mode == 'capture':
-            self.target = input.detach()
+            self.target = self.gram(input.detach())
         elif self.mode == 'loss':
             self.G = self.gram(input)
             self.loss = self.weight * self.criterion(self.G, self.target)

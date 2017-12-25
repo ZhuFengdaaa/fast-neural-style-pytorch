@@ -57,7 +57,7 @@ class Perceptualcriterion(nn.Module):
                     # target_feature = self.discriminator(self.style_img)
                     # target_feature_gram = self.gram(target_feature)
                     style_loss = StyleLoss(opt.style_weight)
-                    #self.discriminator.add_module("style_loss_" + str(i), style_loss)
+                    self.discriminator.add_module("style_loss_" + str(i), style_loss)
                     self.style_losses.append(style_loss)
                 i += 1
 
@@ -84,9 +84,9 @@ class Perceptualcriterion(nn.Module):
         for style_loss in self.style_losses:
             style_loss.set_mode("capture")
         if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.discriminator, input, self.gpu_ids)
+            nn.parallel.data_parallel(self.discriminator, input, self.gpu_ids)
         else:
-            return self.discriminator(input)
+            self.discriminator(input)
 
     def forward(self, input):
         for content_loss in self.content_losses:

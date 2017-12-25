@@ -189,8 +189,8 @@ class PerceptualModel():
         style_score = 0
         for cl in self.perceptualcriterion.content_losses:
             content_score += cl.backward()
-        #for sl in self.perceptualcriterion.style_losses:
-        #    style_score += sl.backward()
+        for sl in self.perceptualcriterion.style_losses:
+            style_score += sl.backward()
         return content_score, style_score
 
     def name(self):

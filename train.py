@@ -50,10 +50,10 @@ for epoch in range(opt.num_epochs):
 
         if epoch_iter % opt.log_iter == 0:
             print("epoch_iter {}:".format(epoch_iter) +
-                  #'Content Loss: {:4f} Style Loss : {:4f} '.format(
-                  'Content Loss: {:4f} '.format(
-                  #    content_score.data[0], style_score.data[0]) +
-                      content_score.data[0]) +
+                  'Content Loss: {:4f} Style Loss : {:4f} '.format(
+                  #'Content Loss: {:4f} '.format(
+                      content_score.data[0], style_score.data[0]) +
+                  #    content_score.data[0]) +
                   'Time Taken: %d sec' % (time.time() - start_time))
             start_time = time.time()
         model.generator_optimizer.step()
