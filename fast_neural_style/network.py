@@ -7,7 +7,7 @@ import torch.optim as optim
 
 from PIL import Image
 import matplotlib.pyplot as plt
-
+from totalvariationloss import TotalVariationLoss
 import torchvision.transforms as transforms
 import torchvision.models as models
 
@@ -61,9 +61,10 @@ class ResnetBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, norm_layer=nn.BatchNorm2d, gpu_ids=[]):
+    def __init__(self, reg_tv, norm_layer=nn.BatchNorm2d, gpu_ids=[]):
         super(Generator, self).__init__()
         self.gpu_ids = gpu_ids
+        self.tv=TotalVariationLoss(reg_tv)
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -109,6 +110,7 @@ class Generator(nn.Module):
                      nn.ReLU(True)
                      ]
         sequence += [nn.Tanh()]
+        sequence += [self.tv]
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
@@ -151,7 +153,7 @@ class PerceptualModel():
         cnn = models.vgg16(pretrained=True).features
         assert (opt.percep_loss_weight > 0)
 
-        self.generator = Generator(norm_layer, opt.gpu_ids)
+        self.generator = Generator(opt.reg_tv, norm_layer, opt.gpu_ids)
         init_weights.init_weights(self.generator)
         self.perceptualcriterion = Perceptualcriterion(cnn, opt)
 
@@ -187,11 +189,13 @@ class PerceptualModel():
         self.generator_optimizer.zero_grad()
         content_score = 0
         style_score = 0
+        tv_score = 0
         for cl in self.perceptualcriterion.content_losses:
             content_score += cl.backward()
         for sl in self.perceptualcriterion.style_losses:
             style_score += sl.backward()
-        return content_score, style_score
+        tv_score+=self.generator.tv.backward()
+        return content_score, style_score, tv_score
 
     def name(self):
         return 'SimpleModel'
