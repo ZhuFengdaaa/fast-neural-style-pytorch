@@ -8,9 +8,9 @@ from torch.autograd import Variable
 import cv2
 import torchvision
 
-
 opt = Options().parse()
 from fast_neural_style import network
+
 args = vars(opt)
 print('------------ Options -------------')
 for k, v in sorted(args.items()):
@@ -23,7 +23,8 @@ if not os.path.isfile(opt.model_path):
 
 model = network.PerceptualModel(opt)
 print("=> loading checkpoint '{}'".format(opt.model_path))
-model.generator.load_state_dict(torch.load(opt.model_path, map_location=lambda storage, loc: storage.cuda(opt.gpu_ids[0])))
+model.generator.load_state_dict(
+    torch.load(opt.model_path, map_location=lambda storage, loc: storage.cuda(opt.gpu_ids[0])))
 print(type(model))
 print(type(model.generator))
 
@@ -44,6 +45,7 @@ for i, data in enumerate(data_loader):
     model.image_tensor.resize_(data.size()).copy_(data)
     model.content_img = Variable(model.image_tensor)
     generated_img = model.generator.forward(model.content_img)
-    torchvision.utils.save_image(generated_img.data.cpu(), opt.visualize_dir+'/'+str(i)+".jpg")
-    if i>100:
+    unnorm_generated_img = model.un_normalize(generated_img)
+    torchvision.utils.save_image(unnorm_generated_img.data.cpu(), opt.visualize_dir + '/' + str(i) + ".jpg")
+    if i > 100:
         break
