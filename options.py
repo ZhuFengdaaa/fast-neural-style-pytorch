@@ -31,7 +31,7 @@ class Options():
         self.parser.add_argument('--log_file', type=str, default='', help='log filename')
         self.parser.add_argument('--log_iter', type=int, default=100, help='frequency of logging')
         self.parser.add_argument('--log_dir', type=str, default='./log', help='directory of logging')
-        self.parser.add_argument('--save_iter', type=int, default=10000, help='frequency of saving checkpoints')
+        self.parser.add_argument('--save_iter', type=int, default=1000, help='frequency of saving checkpoints')
         self.parser.add_argument('--save_dir', type=str, default='./snapshot', help='directory of saveing snapshots')
         self.parser.add_argument('--style_image', type=str, required=True, help='path of style image')
         self.parser.add_argument('--debug', type=bool, default=False, help='flag of debug')

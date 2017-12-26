@@ -11,9 +11,6 @@ class Perceptualcriterion(nn.Module):
         self.content_losses = []
         self.style_losses = []
         self.discriminator = nn.Sequential()
-        if opt.gpu_ids > 0:
-            self.discriminator = self.discriminator.cuda()
-
         content_layers = opt.content_layers
         style_layers = opt.style_layers
 

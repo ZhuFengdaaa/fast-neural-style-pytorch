@@ -149,7 +149,6 @@ class PerceptualModel():
         self.style_img = self.image_loader(opt.style_image)
         self.generated_img = Variable(self.Tensor(nb, 3, size, size))
         norm_layer = get_norm_layer(norm_type=opt.norm)
-        self.model = nn.Sequential()
         cnn = models.vgg16(pretrained=True).features
         assert (opt.percep_loss_weight > 0)
 
@@ -161,12 +160,11 @@ class PerceptualModel():
             self.generator = self.generator.cuda()
             self.perceptualcriterion = self.perceptualcriterion.cuda()
 
-        self.model = nn.Sequential(*[self.generator, self.perceptualcriterion])
-
         # copy style image batch wise
         a,b,c,d = self.style_img.size()
         self.style_img=self.style_img.expand(nb,b,c,d)
-        self.style_img=self.style_img.cuda()
+        if self.opt.gpu_ids > 0:
+            self.style_img = self.style_img.cuda()
         self.perceptualcriterion.set_style_target(self.style_img)
         self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=opt.lr)
         print("build end")
