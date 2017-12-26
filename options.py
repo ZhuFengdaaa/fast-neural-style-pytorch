@@ -12,6 +12,8 @@ class Options():
     def initialize(self):
         self.parser.add_argument('--mode', required=True, choices=['train', 'test'])
         self.parser.add_argument('--data_roots', required=True, type=str, help='path to images, use comma to separate multiple path')
+        self.parser.add_argument('--model_path', required=True, type=str, help='path to checkpoints for test')
+        self.parser.add_argument('--visualize_dir', type=str, default='./visualize', help='path to save images visualized in testing')
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         self.parser.add_argument('--batch_size', type=int, default=4, help='input batch size')
         self.parser.add_argument('--image_size', type=int, default=224, help='scale images to this size')
