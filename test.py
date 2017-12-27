@@ -45,7 +45,7 @@ for i, data in enumerate(data_loader):
     model.image_tensor.resize_(data.size()).copy_(data)
     model.content_img = Variable(model.image_tensor)
     generated_img = model.generator.forward(model.content_img)
-    unnorm_generated_img = model.un_normalize(generated_img)
-    torchvision.utils.save_image(unnorm_generated_img.data.cpu(), opt.visualize_dir + '/' + str(i) + ".jpg")
+    unnorm_generated_img = model.un_normalize(generated_img.data)
+    torchvision.utils.save_image(unnorm_generated_img.cpu(), opt.visualize_dir + '/' + str(i) + ".jpg")
     if i > 100:
         break
